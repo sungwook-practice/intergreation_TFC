@@ -27,9 +27,9 @@ terraform {
   ...
 }
 ```
-
-3. git push를 하세요.
-4. github action이 정상실행되는지 확인하세요
+3. main.tf파일에 내용이 주석이 있으면, 주석을 해제하세요.
+4. git push를 하세요.
+5. github action이 정상실행되는지 확인하세요
 
 ![](./imgs/github_action_success.png)
 
