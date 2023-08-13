@@ -35,7 +35,7 @@ jobs:
         with:
           sarif_file: terrascan.sarif
   Terraform:
-    # needs: SCAN
+    needs: SCAN
     name: Terraform
     runs-on: ubuntu-latest
     steps:
