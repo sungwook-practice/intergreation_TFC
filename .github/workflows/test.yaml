@@ -1,0 +1,106 @@
+name: Terraform DEV
+
+on:
+  push:
+    branches:
+      - main
+    # 테라폼 코드만 push되었을 때 동작하게 설정
+    paths:
+      - "**.tf"
+
+env:
+  MY_PREFIX: DEV
+  TF_VERSION: 1.2.5
+
+jobs:
+  # SCAN:
+  #   name: SCAN
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Check out code
+  #       uses: actions/checkout@v3
+
+  #     - name: Run Terrascan
+  #       id: terrascan
+  #       uses: tenable/terrascan-action@main
+  #       with:
+  #         iac_type: "terraform"
+  #         iac_version: "v14"
+  #         policy_type: "aws"
+  #         only_warn: true
+  #         sarif_upload: true
+
+  #     - name: Upload SARIF file
+  #       uses: github/codeql-action/upload-sarif@v2
+  #       with:
+  #         sarif_file: terrascan.sarif
+  Terraform:
+    # needs: SCAN
+    name: Terraform
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: $TF_VERSION
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      # - name: Terraform Fmt
+      #   id: fmt
+      #   run: terraform fmt -recursive -check
+      #   continue-on-error: true
+
+      - name: Terraform init
+        id: init
+        run: terraform init -upgrade
+        # working-directory: ${{ env.working-directory }}
+
+      - name: Terraform validate
+        id: validate
+        run: terraform validate -no-color
+
+      - name: Terraform plan
+        id: plan
+        run: terraform plan -no-color
+        # working-directory: ${{ env.working-directory }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          TF_LOG: info
+
+      - name: Plan output
+        id: output
+        uses: actions/github-script@v3
+        if: github.event_name == 'pull_request'
+        env:
+          PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
+            #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
+            <details><summary>Show Plan</summary>
+            \`\`\`hcl
+            ${process.env.PLAN}
+            \`\`\`
+            </details>
+            **Pusher**: @${{ github.actor }}
+            **Action**: ${{ github.event_name }}
+            `;
+            github.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+      - name: Terraform apply
+        id: apply
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: terraform apply -auto-approve -input=false
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
